@@ -62,3 +62,21 @@ For every proposed field, explain its workflow role and migration impact. Do not
 - Public URLs are used by the current detail page. Authentication, ownership, private Storage, signed URLs, production RLS, robust cross-resource compensation, upload concurrency/performance, and UI polish are deferred.
 
 This technical debt does not block Phase 1 and is intentionally deferred.
+
+## Phase 1 Schema Migration
+
+Status:
+COMPLETED
+
+Added:
+- cases.case_type
+- case_timepoints
+- case_images.timepoint_id
+- image_predictions
+- image_reviews
+
+Verified:
+- Existing cases preserved
+- Existing images preserved
+- create_case RPC unchanged
+- RLS enabled on new tables
