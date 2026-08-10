@@ -1,82 +1,83 @@
 # DentCase Flow — Current State
 
-Last verified: 2026-08-10
+Last synchronized: 2026-08-10
 
-## Repository Evidence
+## Phase Status
 
-The working tree contains uncommitted Phase 0 implementation work. Source code currently provides:
+### Phase 0 — ACCEPTED / FROZEN
 
-- A force-dynamic case library that reads `cases` ordered by `created_at` descending, links to create/detail pages, and offers case deletion.
-- A create-case client form that calls the `create_case` Supabase RPC with an optional trimmed title, then navigates to the returned case.
-- A case-detail page that reads a case and its `case_images`, derives public URLs from the `case-images` bucket, and renders title editing, gallery, and upload controls.
-- Title update via `cases.update`; multi-file sequential upload to Storage then `case_images.insert`; image deletion from Storage then `case_images`; case deletion by querying paths, removing Storage objects, deleting related image rows, then deleting the case.
-- A Supabase browser client using `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+Accepted on 2026-08-10:
 
-## Current Phase
+- daily sequential `CASE-YYYYMMDD-NNN` code generation through `public.create_case` and `private.case_daily_counters`
+- case creation, title persistence, and case detail navigation
+- batch image upload, gallery refresh, and single-image deletion
+- case deletion with Storage object, `case_images`, and `cases` cleanup
 
-Phase 0 — ACCEPTED / FROZEN
+Case codes are not reused after deletion. Do not modify the RPC, daily counter table, or code-generation rule.
 
-Acceptance date: 2026-08-10
+### Phase 1 — Data Model Established
 
-Manual end-to-end acceptance passed for:
+The live database is confirmed to include:
 
-- creating a case
-- daily incremental case codes in the `CASE-YYYYMMDD-NNN` format
-- editing a case title
-- batch image upload
-- image persistence after page refresh
-- deleting one image
-- synchronized deletion from Storage and `case_images`
-- deleting an entire case
-- three-level deletion from Storage, `case_images`, and `cases`
+- `cases.case_type`, `cases.patient_name`, `cases.patient_phone`, and `cases.birth_year`
+- `case_timepoints`
+- nullable `case_images.timepoint_id`
+- `image_predictions`
+- `image_reviews`
 
-Do not continue CRUD polish unless it blocks Phase 1. The next product phase is Photo Structuring and Human Review. Do not connect a Vision model or create a migration until its contract is explicitly approved.
+Existing Phase 0 cases and images are preserved. Historical patient/timepoint fields may be null.
 
-## What Is Not Verifiable From This Repository
+The repository contains versioned migration drafts for `patient_name`, `patient_phone`, and `birth_year`. The foundational Phase 1 schema migration is confirmed in the live database but is not represented by a checked-in migration file.
 
-There is no checked-in `supabase/` directory, migration, schema definition, RLS policy, bucket definition, or deployment configuration. Therefore the existence and exact definitions of the following cannot be verified locally:
+## Implemented Patient-oriented UI
 
-- `cases` and `case_images` tables, their fields, foreign keys, or cascade behavior
-- `create_case` implementation and its daily sequential `CASE-YYYYMMDD-NNN` behavior
-- `case-images` bucket, its public/private state, and anon RLS policies
-- end-to-end persistence, refresh, deletion, and storage/database recovery behavior
+Current source implementation provides:
 
-The configuration definitions remain unversioned and cannot be inspected from this repository. Their Phase 0 runtime behavior was manually accepted on 2026-08-10.
+- `/`: Chinese treatment-type entry points for 正畸 and 前牙美学修复.
+- `/cases?case_type=...`: treatment-type library with patient-name/phone search, patient list, existing-case links, and new-case entry.
+- `/cases/[id]`: patient treatment record with masked phone, birth year, dynamically calculated age, treatment type, first visit, latest visit fallback, image gallery, upload, and deletion controls.
+- New case form: requires patient name; accepts optional phone and birth year; checks an existing case by `case_type + patient_name`; calls `create_case` with `p_title = patient_name`; then writes patient fields and navigates directly to `/cases/[id]`.
+- UI-only case-type mapping in `lib/caseType.ts`; PostgreSQL values remain English identifiers.
 
-## Phase 1 Design Gate
+`title` remains in PostgreSQL and `EditCaseTitle.tsx` remains in the repository, but the current patient treatment record UI no longer renders title editing.
 
-Propose the minimum data contract and acceptance criteria first. It must specify:
+## Current Timepoint Reality
 
-1. Meaning and allowed values for `stage` and `view`, including unclassified/unknown states.
-2. What AI predicts and what the doctor can edit.
-3. Separate preservation of AI prediction data and doctor-confirmed ground truth.
-4. Review-status representation.
-5. Data needed now for later evaluation and bad-case analysis versus deferred extensions.
+The schema supports Timepoints, and list/detail pages read them when available to calculate the latest visit:
 
-For every proposed field, explain its workflow role and migration impact. Do not implement the migration without approval.
+```text
+max(captured_on)
+→ max(timepoint.created_at)
+→ cases.created_at
+```
 
-## Known Technical Constraints
+However, current `UploadImage.tsx` still uploads directly to Storage and inserts only `case_id` plus `image_path`. It does not yet create a Timepoint or write `case_images.timepoint_id`.
 
-- Storage and database operations are separate. The current upload flow compensates by removing an uploaded object if image-row insertion fails; deletes run Storage first, then database rows, so partial failures remain possible.
-- The gallery receives server-derived data and refreshes after mutations; it does not duplicate the image list in local state.
-- Public URLs are used by the current detail page. Authentication, ownership, private Storage, signed URLs, production RLS, robust cross-resource compensation, upload concurrency/performance, and UI polish are deferred.
+Therefore automatic baseline/progress Timepoint creation is not implemented. Do not describe it as complete until upload behavior is changed and accepted.
 
-This technical debt does not block Phase 1 and is intentionally deferred.
+## Not Implemented
 
-## Phase 1 Schema Migration
+- automatic Timepoint creation per upload batch (`baseline` then `progress`)
+- Timepoint grouping/editing UI
+- AI prediction writer or Vision API integration
+- human review UI, manual prediction UI, confirmation/correction UI
+- evaluation queries, bad-case collection, metrics, or regression workflow
+- patients table or `patient_id`
 
-Status:
-COMPLETED
+## Next Step
 
-Added:
-- cases.case_type
-- case_timepoints
-- case_images.timepoint_id
-- image_predictions
-- image_reviews
+Phase 2 — AI Photo Structuring + Human Review
 
-Verified:
-- Existing cases preserved
-- Existing images preserved
-- create_case RPC unchanged
-- RLS enabled on new tables
+Before a Vision API is connected, inspect the live `image_predictions` and `image_reviews` schema against a manual-prediction and human-review UI. Confirm that prediction history, the reviewed prediction reference, and human labels support the intended evaluation loop.
+
+## Deferred Technical Debt
+
+- Supabase anon MVP permissions and production RLS
+- public Storage, authentication, user isolation, private Storage, signed URLs, and medical-data compliance/deployment
+- historical `case_images` FK design
+- non-transactional Storage/database deletion compensation
+- filename sanitization and file-size/type restrictions
+- raw `<img>` LCP warning
+- Timepoint concurrent sequence allocation
+- complete migration automation and checked-in foundational Phase 1 migration
+- future patients master-data model

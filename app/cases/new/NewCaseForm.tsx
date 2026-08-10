@@ -3,11 +3,18 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "../../../lib/supabase"
+import type { CaseType } from "../../../lib/caseType"
 
-export default function NewCaseForm() {
+type Props = {
+  caseType: CaseType
+}
+
+export default function NewCaseForm({ caseType }: Props) {
   const router = useRouter()
 
-  const [title, setTitle] = useState("")
+  const [patientName, setPatientName] = useState("")
+  const [patientPhone, setPatientPhone] = useState("")
+  const [birthYear, setBirthYear] = useState("")
   const [loading, setLoading] = useState(false)
 
   async function createCase() {
@@ -15,77 +22,161 @@ export default function NewCaseForm() {
       return
     }
 
+    const normalizedPatientName = patientName.trim()
+    const normalizedPatientPhone = patientPhone.trim()
+    const normalizedBirthYear = birthYear.trim()
+    const currentYear = new Date().getFullYear()
+
+    if (!normalizedPatientName) {
+      alert("请输入患者姓名")
+      return
+    }
+
+    if (
+      normalizedBirthYear
+      && (!/^\d{4}$/.test(normalizedBirthYear)
+        || Number(normalizedBirthYear) < 1900
+        || Number(normalizedBirthYear) > currentYear)
+    ) {
+      alert(`请输入 1900-${currentYear} 之间的四位出生年份`)
+      return
+    }
+
     setLoading(true)
 
-    const {
-      data,
-      error,
-    } = await supabase.rpc(
-      "create_case",
-      {
-        p_title: title.trim() || null,
+    try {
+      const {
+        data: existingCases,
+        error: duplicateError,
+      } = await supabase
+        .from("cases")
+        .select(
+          "id,case_code,patient_name,patient_phone,case_type"
+        )
+        .eq("case_type", caseType)
+        .eq("patient_name", normalizedPatientName)
+        .limit(1)
+
+      if (duplicateError) {
+        throw duplicateError
       }
-    )
 
-    setLoading(false)
+      const existingCase = existingCases?.[0]
 
-    if (error) {
-      console.error(
-        "创建病例失败：",
-        error
+      if (existingCase) {
+        const phoneSuffix = existingCase.patient_phone
+          ? existingCase.patient_phone.slice(-4)
+          : "未填写"
+
+        const shouldOpen = window.confirm(
+          `已有该患者病例：\n\n患者：${existingCase.patient_name}\n电话后四位：${phoneSuffix}\n病例编号：${existingCase.case_code}\n\n点击“确定”打开已有病例，点击“取消”返回。`
+        )
+
+        if (shouldOpen) {
+          router.push(`/cases/${existingCase.id}`)
+        }
+
+        return
+      }
+
+      const {
+        data,
+        error,
+      } = await supabase.rpc(
+        "create_case",
+        {
+          p_title: normalizedPatientName,
+        }
       )
 
-      alert(error.message)
+      if (error) {
+        throw error
+      }
 
-      return
+      const newCase = data?.[0]
+
+      if (!newCase) {
+        throw new Error("病例创建失败：未返回病例数据")
+      }
+
+      const { error: updateError } = await supabase
+        .from("cases")
+        .update({
+          case_type: caseType,
+          patient_name: normalizedPatientName,
+          patient_phone: normalizedPatientPhone || null,
+          birth_year: normalizedBirthYear
+            ? Number(normalizedBirthYear)
+            : null,
+        })
+        .eq("id", newCase.id)
+
+      if (updateError) {
+        await supabase
+          .from("cases")
+          .delete()
+          .eq("id", newCase.id)
+
+        throw updateError
+      }
+
+      router.push(`/cases/${newCase.id}`)
+      router.refresh()
+    } catch (error) {
+      console.error("创建病例失败", error)
+
+      if (error instanceof Error) {
+        alert(error.message)
+      } else {
+        alert("创建病例失败")
+      }
+    } finally {
+      setLoading(false)
     }
-
-    const newCase = data?.[0]
-
-    if (!newCase) {
-      alert("病例创建失败：未返回病例数据")
-      return
-    }
-
-    router.push(
-      `/cases/${newCase.id}`
-    )
-
-    router.refresh()
   }
 
   return (
     <div className="space-y-6">
-
       <div>
-        <label
-          className="
-            block
-            text-sm
-            font-medium
-          "
-        >
-          病例标题
+        <label className="block text-sm font-medium">
+          患者姓名（必填）
         </label>
 
         <input
           type="text"
-          value={title}
-          onChange={(e) =>
-            setTitle(e.target.value)
-          }
-          placeholder="例如：前牙美学修复"
-          className="
-            mt-2
-            w-full
-            rounded-lg
-            border
-            px-3
-            py-2
-            outline-none
-            focus:ring-2
-            focus:ring-black
-          "
+          value={patientName}
+          onChange={(event) => setPatientName(event.target.value)}
+          placeholder="请输入患者姓名"
+          className="mt-2 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-black"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium">
+          患者电话（可选）
+        </label>
+
+        <input
+          type="tel"
+          value={patientPhone}
+          onChange={(event) => setPatientPhone(event.target.value)}
+          placeholder="请输入患者电话"
+          className="mt-2 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-black"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium">
+          出生年份（可选）
+        </label>
+
+        <input
+          type="text"
+          inputMode="numeric"
+          value={birthYear}
+          onChange={(event) => setBirthYear(event.target.value)}
+          placeholder="例如：1990"
+          className="mt-2 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-black"
         />
       </div>
 
@@ -93,22 +184,10 @@ export default function NewCaseForm() {
         type="button"
         onClick={createCase}
         disabled={loading}
-        className="
-          rounded-lg
-          bg-black
-          px-4
-          py-2
-          text-white
-          hover:bg-gray-800
-          disabled:cursor-not-allowed
-          disabled:opacity-50
-        "
+        className="rounded-lg bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {loading
-          ? "创建中..."
-          : "创建病例"}
+        {loading ? "创建中..." : "创建病例"}
       </button>
-
     </div>
   )
 }
