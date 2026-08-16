@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local-only Vision side-context experiment inputs and outputs.
+/experiments/vision-side-context.samples.json
+/experiments/vision-side-context-results.json
+/experiments/vision-side-context-diagnostic-*-results.json
+/experiments/vision-side-context-prompt-ablation-results.json
+/experiments/vision-interleaved-control-results.json
+/experiments/vision-interleaved-control-thinking-off-results.json
+/experiments/vision-v2-regression-results.json
+/experiments/vision-v2-thinking-off-results.json
+/experiments/vision-v2-thinking-off-*.json
+
+# Local-only Voice ASR evaluation inputs and derived audio conversion cache.
+/data/eval/voice_v1/audio/
+/data/eval/voice_v1/.cache_audio/
+
+# local experiment data
+data/
+experiments/

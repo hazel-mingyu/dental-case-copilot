@@ -43,8 +43,11 @@ export default function NewCaseForm({ caseType }: Props) {
     }
 
     setLoading(true)
+    const perfStartedAt = performance.now()
+    console.info("[perf:create-case] create click start")
 
     try {
+      const duplicateStartedAt = performance.now()
       const {
         data: existingCases,
         error: duplicateError,
@@ -60,6 +63,7 @@ export default function NewCaseForm({ caseType }: Props) {
       if (duplicateError) {
         throw duplicateError
       }
+      console.info(`[perf:create-case] duplicate lookup end elapsed_ms=${Math.round(performance.now() - duplicateStartedAt)}`)
 
       const existingCase = existingCases?.[0]
 
@@ -79,6 +83,7 @@ export default function NewCaseForm({ caseType }: Props) {
         return
       }
 
+      const insertStartedAt = performance.now()
       const {
         data,
         error,
@@ -92,6 +97,7 @@ export default function NewCaseForm({ caseType }: Props) {
       if (error) {
         throw error
       }
+      console.info(`[perf:create-case] Supabase insert end elapsed_ms=${Math.round(performance.now() - insertStartedAt)}`)
 
       const newCase = data?.[0]
 
@@ -99,6 +105,7 @@ export default function NewCaseForm({ caseType }: Props) {
         throw new Error("病例创建失败：未返回病例数据")
       }
 
+      const updateStartedAt = performance.now()
       const { error: updateError } = await supabase
         .from("cases")
         .update({
@@ -119,9 +126,10 @@ export default function NewCaseForm({ caseType }: Props) {
 
         throw updateError
       }
+      console.info(`[perf:create-case] case update end elapsed_ms=${Math.round(performance.now() - updateStartedAt)}`)
 
+      console.info(`[perf:create-case] router navigation start elapsed_ms=${Math.round(performance.now() - perfStartedAt)}`)
       router.push(`/cases/${newCase.id}`)
-      router.refresh()
     } catch (error) {
       console.error("创建病例失败", error)
 

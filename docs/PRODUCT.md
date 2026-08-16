@@ -28,6 +28,22 @@ Total case library
 2. `/cases?case_type=orthodontics` and `/cases?case_type=anterior_aesthetics` show the selected treatment-type library, patient search, and the new-case entry point.
 3. `/cases/[id]` is the patient treatment record with patient information, images, and upload/delete controls.
 
+### Current Production Photo Workflow
+
+```text
+Doctor selects category
+→ uploads one or more photos
+→ completes upload batch
+→ photos are grouped by timepoint
+→ only uploaded categories are displayed
+→ doctor may edit later
+```
+
+The production doctor-facing photo workflow uses `image_reviews.view_label` as
+the final label and does not call Vision AI, query `image_predictions`, or use
+AI recommendations. Vision contracts, predictions, Eval, Badcase, and
+experiment scripts are preserved as historical experiment evidence only.
+
 New case creation goes directly to `/cases/[id]`. The treatment record returns to its own type library.
 
 ## Case Semantics
