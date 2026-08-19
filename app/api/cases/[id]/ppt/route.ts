@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import PptxGenJS from "pptxgenjs"
 import imageSize from "image-size"
+import { getCurrentUser } from "../../../../../lib/server/auth"
 import { createServerSupabaseClient } from "../../../../../lib/server/supabase"
 
 export const dynamic = "force-dynamic"
@@ -183,15 +184,25 @@ function addAnteriorComparison(slide: PptxGenJS.Slide, timepoints: MatchedTimepo
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) return NextResponse.json({ ok: false, error: "请先登录" }, { status: 401 })
+  } catch {
+    console.error("PPT authentication failed")
+    return errorResponse("PPT 生成失败，请稍后重试。", 500)
+  }
+
   const { id } = await params
   let body: RequestBody = {}
   try { body = await request.json() } catch { return errorResponse("请求格式无效") }
+  if (body.case_id !== undefined && body.case_id !== id) return errorResponse("病例 ID 不一致")
   const pptType: PptType = body.ppt_type === "academic_discussion" ? "academic_discussion" : "case_showcase"
   if (body.ppt_type && body.ppt_type !== "case_showcase" && body.ppt_type !== "academic_discussion") return errorResponse("PPT 类型无效")
   try {
-    const supabase = createServerSupabaseClient(), caseId = body.case_id || id, requestedTimepoints = requestTimepoints(body)
-    const { data: caseData, error: caseError } = await supabase.from("cases").select("id,case_code,case_type").eq("id", caseId).single()
-    if (caseError || !caseData) return errorResponse("病例不存在", 404)
+    const supabase = await createServerSupabaseClient(), caseId = id, requestedTimepoints = requestTimepoints(body)
+    const { data: caseData, error: caseError } = await supabase.from("cases").select("id,case_code,case_type").eq("id", caseId).maybeSingle()
+    if (caseError) { console.error("PPT case lookup failed"); return errorResponse("PPT 生成失败，请稍后重试。", 500) }
+    if (!caseData) return errorResponse("资源不存在", 404)
     const isAnteriorComparison = caseData.case_type === "anterior_aesthetics" && pptType === "case_showcase" && requestedTimepoints.length === 2 && requestedTimepoints.every((timepoint) => timepoint.selected_image_ids.length === 1)
     const matched = await Promise.all(requestedTimepoints.map(async (requestTimepoint) => {
       const { data: timepoint, error: timepointError } = await supabase.from("case_timepoints").select("id,captured_on,sequence_order,completed_at").eq("case_id", caseId).eq("id", requestTimepoint.timepoint_id).not("completed_at", "is", null).maybeSingle()
@@ -213,7 +224,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return images?.find((image) => image.id === imageId) ?? null
       })
       if (orderedImages.some((image) => !image)) throw new RequestValidationError("照片的 view_label 不匹配标准口内布局")
-      return { ...timepoint, layoutType, images: await Promise.all((orderedImages as { id: string; image_path: string; timepoint_id: string }[]).map(async (image) => ({ id: image.id, image_path: image.image_path, view_label: reviewById.get(image.id)!, photo: await fetchPhoto(supabase.storage.from("case-images").getPublicUrl(image.image_path).data.publicUrl) }))) } satisfies MatchedTimepoint
+      return { ...timepoint, layoutType, images: await Promise.all((orderedImages as { id: string; image_path: string; timepoint_id: string }[]).map(async (image) => {
+        const { data: signedUrl, error: signedUrlError } = await supabase.storage.from("case-images").createSignedUrl(image.image_path, 3600)
+        if (signedUrlError || !signedUrl?.signedUrl) throw new Error("病例图片访问失败")
+        return { id: image.id, image_path: image.image_path, view_label: reviewById.get(image.id)!, photo: await fetchPhoto(signedUrl.signedUrl) }
+      })) } satisfies MatchedTimepoint
     }))
     matched.sort((a, b) => a.sequence_order - b.sequence_order)
     const totalSelectedImages = matched.reduce((sum, timepoint) => sum + timepoint.images.length, 0)
@@ -262,6 +277,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return new Response(new Uint8Array(output), { status: 200, headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation", "Content-Disposition": `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`, "Content-Length": String(output.length), "X-DentCase-Ppt-Type": pptType, "X-DentCase-Timepoint-Ids": matched.map((timepoint) => timepoint.id).join(","), "X-DentCase-Image-Ids": matched.flatMap((timepoint) => timepoint.images.map((image) => image.id)).join(","), "X-DentCase-Layout-Types": matched.map((timepoint) => timepoint.layoutType).join(","), "X-DentCase-Summary-Fields": summaryFields.join(",") } })
   } catch (error) {
     if (error instanceof RequestValidationError) return errorResponse(error.message)
-    return errorResponse(error instanceof Error ? error.message : "PPT 生成失败", 500)
+    console.error("PPT generation failed", { errorName: error instanceof Error ? error.name : "unknown" })
+    return errorResponse("PPT 生成失败，请稍后重试。", 500)
   }
 }

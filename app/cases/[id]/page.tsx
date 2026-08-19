@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { supabase } from "../../../lib/supabase"
+import { createServerSupabaseClient } from "../../../lib/server/supabase"
 import PhotoTimeline from "./PhotoTimeline"
 import CaseSummaryPanel from "./CaseSummaryPanel"
 import PptTestButton from "./PptTestButton"
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic"
 function perfNow() { return Number(process.hrtime.bigint()) / 1_000_000 }
 
 export default async function CaseDetail({ params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createServerSupabaseClient()
   const { id } = await params
   const detailStartedAt = perfNow()
   console.info(`[perf:create-case] CaseDetail data loading start case_id=${id}`)
@@ -31,6 +32,12 @@ export default async function CaseDetail({ params }: { params: Promise<{ id: str
     : { data: [], error: null }
   console.info(`[perf:create-case] image_reviews query end elapsed_ms=${Math.round(perfNow() - reviewsStartedAt)}`)
   const reviewByImageId = new Map((reviews ?? []).map((review) => [review.image_id, review.view_label]))
+  const signedImageUrls = await Promise.all((images ?? []).map(async (image) => {
+    const { data, error } = await supabase.storage.from("case-images").createSignedUrl(image.image_path, 3600)
+    return { id: image.id, url: data?.signedUrl ?? "", error: error?.message ?? null }
+  }))
+  const signedImageUrlById = new Map(signedImageUrls.map((image) => [image.id, image.url]))
+  const signedImageUrlError = signedImageUrls.find((image) => image.error)?.error ?? null
   const completeBatches = (timepoints ?? []).map((timepoint) => ({
     id: timepoint.id,
     captured_on: timepoint.captured_on,
@@ -39,7 +46,7 @@ export default async function CaseDetail({ params }: { params: Promise<{ id: str
     images: (images ?? []).filter((image) => image.timepoint_id === timepoint.id).map((image) => ({
       id: image.id,
       image_path: image.image_path,
-      url: supabase.storage.from("case-images").getPublicUrl(image.image_path).data.publicUrl,
+      url: signedImageUrlById.get(image.id) ?? "",
       view_label: reviewByImageId.get(image.id) ?? null,
     })),
   })).filter((batch) => batch.images.length > 0)
@@ -47,12 +54,19 @@ export default async function CaseDetail({ params }: { params: Promise<{ id: str
   const legacyImages = (images ?? []).filter((image) => !image.timepoint_id || !completedIds.has(image.timepoint_id)).map((image) => ({
     id: image.id,
     image_path: image.image_path,
-    url: supabase.storage.from("case-images").getPublicUrl(image.image_path).data.publicUrl,
+    url: signedImageUrlById.get(image.id) ?? "",
     view_label: reviewByImageId.get(image.id) ?? null,
   }))
+  const firstRenderedImage = completeBatches.flatMap((batch) => batch.images)[0] ?? legacyImages[0]
+  if (process.env.NODE_ENV === "development" && firstRenderedImage) {
+    console.info("Case image render diagnostic", {
+      imagePath: firstRenderedImage.image_path,
+      finalImageUrl: firstRenderedImage.url,
+    })
+  }
   const isTreatmentEnded = (timepoints ?? []).some((timepoint) => timepoint.is_final === true)
   const latestVisit = completeBatches.length ? completeBatches[completeBatches.length - 1].completed_at : caseData.created_at
-  const loadError = timepointsError || imagesError || reviewsError || voiceNotesError
+  const loadError = timepointsError || imagesError || reviewsError || voiceNotesError || (signedImageUrlError ? { message: "病例图片访问失败，请刷新后重试。" } : null)
 
   console.info(`[perf:create-case] CaseDetail data loading end elapsed_ms=${Math.round(perfNow() - detailStartedAt)}`)
   return <main className="min-h-screen bg-[#f9faf9] px-4 py-8 sm:px-6 lg:px-8">

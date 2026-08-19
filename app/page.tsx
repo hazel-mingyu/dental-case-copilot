@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { caseTypeLabels } from "../lib/caseType"
-import { supabase } from "../lib/supabase"
+import { createServerSupabaseClient } from "../lib/server/supabase"
+import SignOutButton from "./SignOutButton"
 
 const CASE_TYPES = Object.entries(caseTypeLabels)
 
@@ -10,6 +11,7 @@ type CaseTimepoint = { case_id: string; captured_on: string | null }
 export const dynamic = "force-dynamic"
 
 export default async function Home() {
+  const supabase = await createServerSupabaseClient()
   const [{ data }, { data: timepointData }] = await Promise.all([
     supabase.from("cases").select("id,case_type"),
     supabase.from("case_timepoints").select("case_id,captured_on").not("captured_on", "is", null),
@@ -34,10 +36,11 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-[#f9faf9] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1120px]">
-        <header className="bg-white px-2 py-3">
-          <p className="text-sm text-[#597369]">DentCase</p>
+        <header className="flex items-start justify-between gap-4 bg-white px-2 py-3">
+          <div><p className="text-sm text-[#597369]">DentCase</p>
           <h1 className="mt-1 text-[28px] font-semibold tracking-tight text-[#212e29]">总病历库</h1>
-          <p className="mt-2 text-sm text-[#597369]">按治疗类型进入病例库，查看和管理已有病例。</p>
+          <p className="mt-2 text-sm text-[#597369]">按治疗类型进入病例库，查看和管理已有病例。</p></div>
+          <SignOutButton />
         </header>
 
         <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="病例概览">

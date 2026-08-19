@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { supabase } from "../../lib/supabase"
+import { createServerSupabaseClient } from "../../lib/server/supabase"
 import {
   caseTypeLabels,
   isCaseType,
@@ -50,6 +50,7 @@ export default async function CasesPage({
     q?: string
   }>
 }) {
+  const supabase = await createServerSupabaseClient()
   const params = await searchParams
   const requestedCaseType = params.case_type
   const searchQuery = params.q?.trim() ?? ""

@@ -2,6 +2,14 @@
 
 Last synchronized: 2026-08-12
 
+## Pre-deployment Security Hardening Checkpoint
+
+- P0 anonymous model invocation has been fixed.
+- P1 API authentication and ownership checks have been fixed.
+- `npm run build` passes.
+- Still pending: runtime regression, persistent rate limits, full database RLS/Grants audit, two-account acceptance testing, and deployment.
+- Manually applied RLS changes still need to be consolidated into reproducible migrations.
+
 ## Phase Status
 
 ### Phase 0 — ACCEPTED / FROZEN

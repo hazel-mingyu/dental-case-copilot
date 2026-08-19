@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { supabase } from "../../lib/supabase"
+import { createServerSupabaseClient } from "../../lib/server/supabase"
 import {
   VISION_PREDICTOR_VERSION,
   VISION_TAXONOMY_VERSION,
@@ -44,6 +44,7 @@ export default async function EvalPage({
 }: {
   searchParams: Promise<{ predictor_version?: string }>
 }) {
+  const supabase = await createServerSupabaseClient()
   const { predictor_version: requestedPredictorVersion } = await searchParams
   const predictorVersion =
     requestedPredictorVersion === VISION_PREDICTOR_VERSION
@@ -99,6 +100,12 @@ export default async function EvalPage({
 
   const { samples, integrity } = buildEvalSamples(reviews, predictions, images)
   const metrics = calculateEvalMetrics(samples)
+  const badcases = await Promise.all(metrics.badcases.map(async (sample) => {
+    const { data, error } = await supabase.storage.from("case-images").createSignedUrl(sample.image_path, 3600)
+    return { ...sample, image_url: data?.signedUrl ?? null, image_error: error?.message ?? null }
+  }))
+  const signedImageUrlError = badcases.find((sample) => sample.image_error)?.image_error
+  if (signedImageUrlError) return <EvalLoadError message="病例图片读取失败，请刷新后重试。" />
   const integrityMessageCount = getIntegrityMessageCount(integrity)
 
   if (process.env.NODE_ENV === "development") {
@@ -205,16 +212,12 @@ export default async function EvalPage({
                 </tr>
               </thead>
               <tbody>
-                {metrics.badcases.map((sample) => {
-                  const { data } = supabase.storage
-                    .from("case-images")
-                    .getPublicUrl(sample.image_path)
-
+                {badcases.map((sample) => {
                   return (
                     <tr key={sample.image_id} className="border-b last:border-0 align-middle">
                       <td className="px-4 py-3">
                         <img
-                          src={data.publicUrl}
+                          src={sample.image_url ?? ""}
                           alt="Badcase 图片"
                           className="h-16 w-16 rounded object-cover"
                         />
