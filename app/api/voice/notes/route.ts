@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { createServerSupabaseClient } from "@/lib/server/supabase"
 
 type Segment = { category?: unknown; content?: unknown; evidence_quote?: unknown; evidence_valid?: unknown; source?: unknown }
-function clean(segments: unknown): Segment[] { return Array.isArray(segments) ? segments.filter((item): item is Segment => Boolean(item && typeof item === "object" && typeof (item as Segment).content === "string" && (item as Segment).content.trim())).map((item) => ({ ...item, content: String(item.content).trim() })) : [] }
+function clean(segments: unknown): Segment[] { return Array.isArray(segments) ? segments.filter((item): item is Segment => { const content = item && typeof item === "object" ? (item as Segment).content : undefined; return typeof content === "string" && Boolean(content.trim()) }).map((item) => ({ ...item, content: String(item.content).trim() })) : [] }
 function dedupe(segments: Segment[]) { return segments.filter((item, index) => segments.findIndex((other) => other.content === item.content) === index) }
 function stamped(transcript: string) { return `[${new Date().toLocaleString("zh-CN", { hour12: false })}]\n${transcript.trim()}` }
 

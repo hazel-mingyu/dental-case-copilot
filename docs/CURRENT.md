@@ -395,6 +395,51 @@ feedback and freshness reuse are the selected mitigations. See
 [`phase3_summary_eval.md`](phase3_summary_eval.md) for the frozen evaluation and
 product decisions.
 
+## Phase 4 — PPT Generator
+
+**Phase 4 — PPT Generator — Frozen**
+
+PPT Generator Contract v1 and Selection Workflow v1 are Frozen. PPT MVP is
+complete; stop adding core capabilities unless real user feedback proves a new
+requirement is necessary.
+
+Final verified MVP capabilities:
+
+- `academic_discussion` / 学术交流 and `case_showcase` / 病例展示;
+- doctor-selected Case Summary entries, completed timepoints, and images;
+- up to 3 timepoints, 6 images per timepoint, and 10 images total;
+- orthodontic intraoral `intraoral_standard_3` and
+  `intraoral_standard_5`, matched independently per timepoint;
+- deterministic, rule-based single-slide PPTX layout and browser download;
+- no AI clinical advice or AI automatic image selection.
+
+The code also includes an anterior-aesthetics Case Showcase comparison rule:
+2 timepoints × 1 `intraoral_frontal` image per timepoint, sorted by
+`sequence_order` as treatment-before / treatment-after. Its real PPT-file
+manual visual acceptance is pending and is therefore not recorded as a final
+verified capability.
+
+PPT Selection UI runtime reconciliation fix — PASS:
+
+- `PhotoOption` dynamic text nodes are consolidated;
+- timepoint/photo keys are stable and selection state uses immutable updates;
+- timepoint select/remove, rapid photo toggling, and PPT type switching passed
+  regression checks.
+
+PPT Renderer Visual Polish v2
+
+Status: Implementation complete; manual visual verification pending.
+
+Known pending verification (does not reopen the frozen Phase 4 scope):
+
+`intraoral_standard_5` is implemented and passed code-level/regression logic
+verification. A real eligible standard-five-image timepoint is now available,
+but its PowerPoint manual-open acceptance is not yet recorded as PASS. This
+does not block the Phase 4 MVP freeze.
+
+Next: Productization → Final UI polish → Documentation / architecture
+understanding → Resume → Interview preparation.
+
 ## Deferred Technical Debt
 
 - production RLS

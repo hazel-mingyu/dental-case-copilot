@@ -19,6 +19,7 @@
 
 # production
 /build
+*.pptx
 
 # misc
 .DS_Store

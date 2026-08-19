@@ -150,8 +150,8 @@ export default async function CasesPage({
   const caseTypeLabel = caseTypeLabels[caseType]
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="mx-auto max-w-5xl">
+    <main className="min-h-screen bg-stone-50 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <Link
@@ -161,14 +161,15 @@ export default async function CasesPage({
               ← 返回总病历库
             </Link>
 
-            <h1 className="mt-4 text-3xl font-bold">
+            <p className="mt-4 text-sm text-gray-500">病例库</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-gray-900">
               {caseTypeLabel}
             </h1>
           </div>
 
           <Link
             href={`/cases/new?case_type=${caseType}`}
-            className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-800"
           >
             + 新建病例
           </Link>
@@ -189,19 +190,19 @@ export default async function CasesPage({
             name="q"
             defaultValue={searchQuery}
             placeholder="搜索患者姓名或电话"
-            className="w-full rounded-lg border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
           />
 
           <button
             type="submit"
-            className="rounded-lg border bg-white px-5 py-2 text-sm font-medium hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:border-emerald-700 hover:bg-emerald-50"
           >
             搜索
           </button>
         </form>
 
         {cases.length === 0 ? (
-          <div className="mt-8 rounded-xl border border-dashed bg-gray-50 px-6 py-12 text-center">
+          <div className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center">
             <p className="font-medium text-gray-700">
               暂无患者病例
             </p>
@@ -212,7 +213,7 @@ export default async function CasesPage({
 
             <Link
               href={`/cases/new?case_type=${caseType}`}
-              className="mt-5 inline-block rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+              className="mt-5 inline-block rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-800"
             >
               新建病例
             </Link>
@@ -228,18 +229,18 @@ export default async function CasesPage({
               return (
                 <div
                   key={caseItem.id}
-                  className="flex items-center justify-between gap-4 rounded-xl border bg-white p-5 transition hover:shadow-md"
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md"
                 >
                   <Link
                     href={`/cases/${caseItem.id}`}
                     className="min-w-0 flex-1"
                   >
-                    <p className="truncate text-lg font-semibold">
+                    <p className="truncate text-lg font-semibold text-gray-900">
                       {caseItem.patient_name || "未填写患者姓名"}
                     </p>
 
                     <p className="mt-2 text-sm text-gray-500">
-                      最近就诊：
+                      {caseItem.case_code} · 最近就诊：
                       {new Date(latestVisit).toLocaleString("zh-CN")}
                     </p>
                   </Link>

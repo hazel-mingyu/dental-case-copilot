@@ -48,21 +48,11 @@ export default function NewCaseForm({ caseType }: Props) {
 
     try {
       const duplicateStartedAt = performance.now()
-      const {
-        data: existingCases,
-        error: duplicateError,
-      } = await supabase
-        .from("cases")
-        .select(
-          "id,case_code,patient_name,patient_phone,case_type"
-        )
-        .eq("case_type", caseType)
-        .eq("patient_name", normalizedPatientName)
-        .limit(1)
+      const { data: existingCases, error: duplicateError } = normalizedPatientPhone
+        ? await supabase.from("cases").select("id,case_code,patient_name,patient_phone,case_type").eq("patient_name", normalizedPatientName).eq("patient_phone", normalizedPatientPhone).limit(1)
+        : { data: [], error: null }
 
-      if (duplicateError) {
-        throw duplicateError
-      }
+      if (duplicateError) throw duplicateError
       console.info(`[perf:create-case] duplicate lookup end elapsed_ms=${Math.round(performance.now() - duplicateStartedAt)}`)
 
       const existingCase = existingCases?.[0]
@@ -146,7 +136,7 @@ export default function NewCaseForm({ caseType }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <label className="block text-sm font-medium">
+        <label className="block text-sm font-medium text-[#303b36]">
           患者姓名（必填）
         </label>
 
@@ -155,12 +145,12 @@ export default function NewCaseForm({ caseType }: Props) {
           value={patientName}
           onChange={(event) => setPatientName(event.target.value)}
           placeholder="请输入患者姓名"
-          className="mt-2 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-black"
+          className="mt-2 w-full rounded-lg border border-[#c2d6cc] bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-[#0f6b45] focus:ring-2 focus:ring-[#dcefe4]"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium">
+        <label className="block text-sm font-medium text-[#303b36]">
           患者电话（可选）
         </label>
 
@@ -169,12 +159,12 @@ export default function NewCaseForm({ caseType }: Props) {
           value={patientPhone}
           onChange={(event) => setPatientPhone(event.target.value)}
           placeholder="请输入患者电话"
-          className="mt-2 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-black"
+          className="mt-2 w-full rounded-lg border border-[#c2d6cc] bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-[#0f6b45] focus:ring-2 focus:ring-[#dcefe4]"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium">
+        <label className="block text-sm font-medium text-[#303b36]">
           出生年份（可选）
         </label>
 
@@ -184,7 +174,7 @@ export default function NewCaseForm({ caseType }: Props) {
           value={birthYear}
           onChange={(event) => setBirthYear(event.target.value)}
           placeholder="例如：1990"
-          className="mt-2 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-black"
+          className="mt-2 w-full rounded-lg border border-[#c2d6cc] bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-[#0f6b45] focus:ring-2 focus:ring-[#dcefe4]"
         />
       </div>
 
@@ -192,7 +182,7 @@ export default function NewCaseForm({ caseType }: Props) {
         type="button"
         onClick={createCase}
         disabled={loading}
-        className="rounded-lg bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded-lg bg-[#126e47] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0d5940] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? "创建中..." : "创建病例"}
       </button>
