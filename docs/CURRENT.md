@@ -1,6 +1,6 @@
 # DentCase Flow — Current State
 
-Last synchronized: 2026-08-12
+Last synchronized: 2026-08-20
 
 ## Pre-deployment Security Hardening Checkpoint
 
@@ -450,8 +450,6 @@ understanding → Resume → Interview preparation.
 
 ## Deferred Technical Debt
 
-- production RLS
-- public Storage, authentication, user isolation, private Storage, signed URLs, and medical-data compliance/deployment
 - historical `case_images` FK design
 - non-transactional Storage/database deletion compensation
 - file-size/type restrictions
@@ -459,3 +457,58 @@ understanding → Resume → Interview preparation.
 - Timepoint concurrent sequence allocation
 - complete migration automation and checked-in foundational Phase 1 migration
 - future patients master-data model
+
+## Production Readiness Freeze — 2026-08-20
+
+Status: **Production readiness checks completed; deployment pending**.
+
+Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 product functionality is
+frozen for deployment. No new product capability is included in this freeze.
+
+### Persistent daily API limits — PASS
+
+The account-level UTC daily limits are persisted in Supabase and enforced by
+the authenticated RPC before high-cost provider work:
+
+| Operation | Daily limit |
+|---|---:|
+| `voice_transcribe` | 50 |
+| `voice_extract_candidates` | 100 |
+| `case_summary` | 30 |
+| `case_ppt` | 50 |
+
+Case Summary cache hits reuse the stored result without quota consumption or a
+provider call. Cache misses consume quota before provider work.
+
+### Database and Storage hardening — PASS
+
+- All business tables have RLS enabled.
+- Ownership policies are limited to authenticated users and constrain access
+  through `cases.owner_id = auth.uid()`.
+- Anonymous business-table permissions are revoked.
+- Authenticated table grants are minimized; TRUNCATE, TRIGGER, and REFERENCES
+  are revoked.
+- `case-images` is private.
+- The quota table and RPC use the reproducible migrations under
+  `supabase/migrations`.
+
+### Isolation acceptance — PASS
+
+Two-account database, page, summary, PPT, voice, and Storage ownership tests
+passed. Anonymous page and API access tests passed with the expected denial
+responses.
+
+### Deployment compatibility — PASS
+
+- Voice candidate extraction Prompt and Schema are bundled in a server-only
+  TypeScript resource module; production code no longer reads ignored
+  `data/eval` files.
+- Summary and PPT routes explicitly use the Node.js runtime and
+  `maxDuration = 200`.
+- PPT responses over 4 MiB return HTTP 413 with the fixed user-facing error;
+  responses at or below the limit retain the normal download behavior.
+- A two-timepoint, five-photo runtime PPT measured 802 KB and downloaded
+  successfully.
+
+The remaining deferred items above are non-blocking follow-up work and do not
+reopen the frozen Phase 0–4 scope.

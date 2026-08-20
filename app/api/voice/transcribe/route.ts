@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/server/auth"
+import { consumeDailyApiQuota, dailyApiQuotaExceededResponse } from "@/lib/server/dailyApiQuota"
 import { transcribeVoice } from "@/lib/server/voice"
 
 export const runtime = "nodejs"
@@ -11,6 +12,13 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ ok: false, error: "请先登录" }, { status: 401 })
   } catch {
     console.error("Voice transcription authentication failed")
+    return NextResponse.json({ error: "语音识别失败，请稍后重试。" }, { status: 500 })
+  }
+
+  try {
+    if (!(await consumeDailyApiQuota("voice_transcribe")).allowed) return dailyApiQuotaExceededResponse()
+  } catch {
+    console.error("Voice transcription quota check failed")
     return NextResponse.json({ error: "语音识别失败，请稍后重试。" }, { status: 500 })
   }
 

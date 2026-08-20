@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/server/auth"
+import { consumeDailyApiQuota, dailyApiQuotaExceededResponse } from "@/lib/server/dailyApiQuota"
+import { prepareVoiceCandidateResources } from "@/lib/server/voiceCandidateResources"
 import { extractVoiceCandidates } from "@/lib/server/voice"
 
 export const runtime = "nodejs"
@@ -19,6 +21,13 @@ export async function POST(request: Request) {
     if (typeof body.transcript !== "string" || !body.transcript.trim()) return NextResponse.json({ error: "请先提供有效的语音转写内容。" }, { status: 400 })
     const transcript = body.transcript.trim()
     if (transcript.length > 20_000) return NextResponse.json({ error: "语音转写内容过长，请控制在 20000 字符以内。" }, { status: 413 })
+    prepareVoiceCandidateResources()
+    try {
+      if (!(await consumeDailyApiQuota("voice_extract_candidates")).allowed) return dailyApiQuotaExceededResponse()
+    } catch {
+      console.error("Voice candidate extraction quota check failed")
+      return NextResponse.json({ error: "病例信息整理失败，请稍后重试。" }, { status: 500 })
+    }
     return NextResponse.json(await extractVoiceCandidates(transcript))
   } catch (error) {
     console.error("Voice candidate extraction failed", { errorName: error instanceof Error ? error.name : "unknown" })

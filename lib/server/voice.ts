@@ -1,10 +1,7 @@
-import { readFile } from "node:fs/promises"
-import path from "node:path"
 import OpenAI from "openai"
 import { z } from "zod"
+import { voiceCandidateJsonSchema, voiceCandidatePrompt } from "./voiceCandidateResources"
 
-const VOICE_EVAL_ROOT = path.join(process.cwd(), "data", "eval", "voice_v1")
-const NORMALIZATION_ROOT = path.join(VOICE_EVAL_ROOT, "voice_review_normalization_v1")
 const ASR_MODEL = "qwen-audio-3.0-asr-flash"
 const CANDIDATE_MODEL = "qwen3.7-plus-2026-05-26"
 
@@ -73,17 +70,13 @@ export async function transcribeVoice(audio: Uint8Array, mimeType: string) {
 export async function extractVoiceCandidates(transcript: string): Promise<{ normalized_text: string; segments: VoiceCandidate[] }> {
   if (!transcript.trim()) throw new VoiceServiceError("transcript_empty", 400)
   const { apiKey, baseUrl } = credentials()
-  const [prompt, schemaText] = await Promise.all([
-    readFile(path.join(NORMALIZATION_ROOT, "prompt.txt"), "utf8"),
-    readFile(path.join(NORMALIZATION_ROOT, "schema.json"), "utf8"),
-  ])
-  const client = new OpenAI({ apiKey, baseURL: baseUrl })
+  const client = new OpenAI({ apiKey, baseURL: baseUrl, maxRetries: 0 })
   let completion
   try {
     completion = await client.chat.completions.create({
       model: CANDIDATE_MODEL,
-      messages: [{ role: "system", content: prompt }, { role: "user", content: `Transcript：\n${transcript}` }],
-      response_format: { type: "json_schema", json_schema: { name: "voice_review_normalization_v1", strict: true, schema: JSON.parse(schemaText) } },
+      messages: [{ role: "system", content: voiceCandidatePrompt }, { role: "user", content: `Transcript：\n${transcript}` }],
+      response_format: { type: "json_schema", json_schema: { name: "voice_review_normalization_v1", strict: true, schema: voiceCandidateJsonSchema } },
     })
   } catch {
     throw new VoiceServiceError("candidate_provider_error", 502)

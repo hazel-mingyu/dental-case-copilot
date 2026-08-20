@@ -2,9 +2,13 @@ import { NextResponse } from "next/server"
 import PptxGenJS from "pptxgenjs"
 import imageSize from "image-size"
 import { getCurrentUser } from "../../../../../lib/server/auth"
+import { consumeDailyApiQuota, dailyApiQuotaExceededResponse } from "../../../../../lib/server/dailyApiQuota"
 import { createServerSupabaseClient } from "../../../../../lib/server/supabase"
+import { PPT_RESPONSE_TOO_LARGE_STATUS, pptResponseSizeError } from "../../../../../lib/server/pptResponseLimit.mjs"
 
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+export const maxDuration = 200
 
 const RIGHT_BUCCAL = "intraoral_right_buccal"
 const FRONTAL = "intraoral_frontal"
@@ -199,10 +203,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const pptType: PptType = body.ppt_type === "academic_discussion" ? "academic_discussion" : "case_showcase"
   if (body.ppt_type && body.ppt_type !== "case_showcase" && body.ppt_type !== "academic_discussion") return errorResponse("PPT 类型无效")
   try {
-    const supabase = await createServerSupabaseClient(), caseId = id, requestedTimepoints = requestTimepoints(body)
+    const requestedTimepoints = requestTimepoints(body)
+    const supabase = await createServerSupabaseClient(), caseId = id
     const { data: caseData, error: caseError } = await supabase.from("cases").select("id,case_code,case_type").eq("id", caseId).maybeSingle()
     if (caseError) { console.error("PPT case lookup failed"); return errorResponse("PPT 生成失败，请稍后重试。", 500) }
     if (!caseData) return errorResponse("资源不存在", 404)
+    try {
+      if (!(await consumeDailyApiQuota("case_ppt")).allowed) return dailyApiQuotaExceededResponse()
+    } catch {
+      console.error("PPT quota check failed")
+      return errorResponse("PPT 生成失败，请稍后重试。", 500)
+    }
     const isAnteriorComparison = caseData.case_type === "anterior_aesthetics" && pptType === "case_showcase" && requestedTimepoints.length === 2 && requestedTimepoints.every((timepoint) => timepoint.selected_image_ids.length === 1)
     const matched = await Promise.all(requestedTimepoints.map(async (requestTimepoint) => {
       const { data: timepoint, error: timepointError } = await supabase.from("case_timepoints").select("id,captured_on,sequence_order,completed_at").eq("case_id", caseId).eq("id", requestTimepoint.timepoint_id).not("completed_at", "is", null).maybeSingle()
@@ -273,6 +284,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ], rightX, topY + 0.05, rightW)
     }
     const output = await pptx.write({ outputType: "nodebuffer" }) as Buffer, safeCode = String(caseData.case_code).replace(/[^a-zA-Z0-9_-]/g, "_"), filename = `DentCase_${safeCode}_${pptLabel}.pptx`, asciiFilename = `DentCase_${safeCode}_${pptType}.pptx`
+    const sizeError = pptResponseSizeError(output.byteLength)
+    if (sizeError) return errorResponse(sizeError, PPT_RESPONSE_TOO_LARGE_STATUS)
     const summaryFields = pptType === "academic_discussion" ? [currentStatus.length ? "current_status" : "none", treatmentProgress.length ? "treatment_actions_or_completion_summary" : "none"] : [treatmentProgress.length ? "treatment_actions_or_completion_summary" : "none", finalStatus.length ? "final_outcome" : "none"]
     return new Response(new Uint8Array(output), { status: 200, headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation", "Content-Disposition": `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`, "Content-Length": String(output.length), "X-DentCase-Ppt-Type": pptType, "X-DentCase-Timepoint-Ids": matched.map((timepoint) => timepoint.id).join(","), "X-DentCase-Image-Ids": matched.flatMap((timepoint) => timepoint.images.map((image) => image.id)).join(","), "X-DentCase-Layout-Types": matched.map((timepoint) => timepoint.layoutType).join(","), "X-DentCase-Summary-Fields": summaryFields.join(",") } })
   } catch (error) {

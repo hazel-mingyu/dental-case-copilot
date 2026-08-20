@@ -60,8 +60,8 @@ export default async function CaseDetail({ params }: { params: Promise<{ id: str
   const firstRenderedImage = completeBatches.flatMap((batch) => batch.images)[0] ?? legacyImages[0]
   if (process.env.NODE_ENV === "development" && firstRenderedImage) {
     console.info("Case image render diagnostic", {
-      imagePath: firstRenderedImage.image_path,
-      finalImageUrl: firstRenderedImage.url,
+      has_image_url: Boolean(firstRenderedImage.url),
+      source: "signed",
     })
   }
   const isTreatmentEnded = (timepoints ?? []).some((timepoint) => timepoint.is_final === true)
