@@ -460,7 +460,7 @@ understanding → Resume → Interview preparation.
 
 ## Production Readiness Freeze — 2026-08-20
 
-Status: **Production readiness checks completed; deployment pending**.
+Status: **Production deployed; minimum smoke tests passed; China-access performance optimization pending**.
 
 Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 product functionality is
 frozen for deployment. No new product capability is included in this freeze.
@@ -512,3 +512,20 @@ responses.
 
 The remaining deferred items above are non-blocking follow-up work and do not
 reopen the frozen Phase 0–4 scope.
+
+### Production deployment — PASS
+
+- Vercel Production deployment succeeded at
+  https://dental-case-copilot.vercel.app.
+- The first production code commit was `b982d49`.
+- Four Vercel environment variables are configured; values are intentionally
+  not recorded here.
+- Supabase Auth Site URL and Redirect URLs are configured.
+- Production anonymous access, login, and core-function smoke tests were
+  basically PASS.
+- Overall online access latency remains high, but no functional failure was
+  found.
+- Performance diagnosis and China-access deployment optimization are
+  explicitly deferred.
+- The npm `unrs-resolver` allow-scripts warning is non-blocking and is not
+  addressed in this release.
